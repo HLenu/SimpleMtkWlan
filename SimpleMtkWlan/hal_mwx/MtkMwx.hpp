@@ -45,6 +45,10 @@ public:
     UInt32 supportedFeatures() override;
     const char *getFirmwareCountryCode() override;
     uint32_t getTxQueueSize() override;
+    uint32_t getRxRateKbps() override;
+
+    uint32_t getPhyLimit() override;
+    IOReturn setPhyLimit(uint32_t limit) override;
 
     void clearScanningFlags() override;
     IOReturn setMulticastList(IOEthernetAddress *addr, int count) override;
@@ -54,9 +58,14 @@ public:
     IOEthernetController *mwxController();
     int mwxSleepNsec(void *ident, int priority, const char *wmesg, uint64_t timo);
     void mwxWakeup(void *ident);
+    bool mwxOnWorkLoop();
+    virtual void shutdownHardware() override;
 
 private:
     void releaseAll();
+
+    static IOReturn phyLimitAction(OSObject *owner, void *limit,
+        void *target, void *, void *);
 
     struct mwx_softc *com;
     struct pci_attach_args *pci;

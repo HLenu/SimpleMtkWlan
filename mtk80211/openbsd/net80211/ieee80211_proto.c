@@ -130,7 +130,7 @@ ieee80211_proto_attach(struct _ifnet *ifp)
 void
 ieee80211_proto_detach(struct _ifnet *ifp)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
 	struct ieee80211com *ic = (struct ieee80211com *)ifp;
 
 	mq_purge(&ic->ic_mgtq);
@@ -383,7 +383,7 @@ ieee80211_set_shortslottime(struct ieee80211com *ic, int on)
 int
 ieee80211_keyrun(struct ieee80211com *ic, u_int8_t *macaddr)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
 	struct ieee80211_node *ni = ic->ic_bss;
 #ifndef IEEE80211_STA_ONLY
 	struct ieee80211_pmk *pmk;
@@ -831,7 +831,7 @@ ieee80211_vht_negotiate(struct ieee80211com *ic, struct ieee80211_node *ni)
 void
 ieee80211_he_negotiate(struct ieee80211com *ic, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     uint8_t ext_nss_bw_supp, supp_chwidth;
     uint16_t cf0, cf1;
     int ccfs0, ccfs1, ccfs2;
@@ -1202,7 +1202,7 @@ ieee80211_auth_open_confirm(struct ieee80211com *ic,
 void
 ieee80211_try_another_bss(struct ieee80211com *ic)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
 	struct ieee80211_node *curbs, *selbs;
 	struct _ifnet *ifp = &ic->ic_if;
 
@@ -1246,7 +1246,7 @@ ieee80211_auth_open(struct ieee80211com *ic, const struct ieee80211_frame *wh,
     struct ieee80211_node *ni, struct ieee80211_rxinfo *rxi, u_int16_t seq,
     u_int16_t status)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
 	struct _ifnet *ifp = &ic->ic_if;
 	switch (ic->ic_opmode) {
 #ifndef IEEE80211_STA_ONLY

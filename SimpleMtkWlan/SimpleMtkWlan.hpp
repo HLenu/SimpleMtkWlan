@@ -59,6 +59,7 @@ public:
     virtual IOReturn setHardwareAddress(const IOEthernetAddress * addrP) override;
     virtual IOReturn enable(IONetworkInterface *netif) override;
     virtual IOReturn disable(IONetworkInterface *netif) override;
+    virtual void systemWillShutdown(IOOptionBits specifier) override;
     virtual UInt32 outputPacket(mbuf_t, void * param) override;
     virtual IOReturn setPromiscuousMode(IOEnetPromiscuousMode mode) override;
     virtual IOReturn setMulticastMode(IOEnetMulticastMode mode) override;
@@ -87,6 +88,7 @@ public:
     void releaseAll();
     void joinSSID(const char *ssid, const char *pwd);
     void associateSSID(const char *ssid, const char *pwd);
+    void shutdownRadio();
     void watchdogAction(IOTimerEventSource *timer);
     
     bool initPCIPowerManagment(IOPCIDevice *provider);
@@ -100,6 +102,10 @@ public:
     void unregistPM();
     
     bool createMediumTables(const IONetworkMedium **primary);
+
+    void recordAttachStage(IOService *provider, const char *stage,
+                           IOReturn result = kIOReturnSuccess);
+    void publishLog(IOService *target);
     
 public:
     IOInterruptEventSource* fInterrupt;
@@ -125,4 +131,12 @@ public:
     struct ieee80211_nwkey nwkey;
     struct ieee80211_join join;
     struct ieee80211_nwid nwid;
+};
+
+/*
+ * HeliPort only opens drivers whose IOClass is "itlwm"/"itlwmx". The user client
+ * speaks the same ClientKit ioctls, so expose the driver under that class name.
+ */
+class itlwm : public SimpleMtkWlan {
+    OSDeclareDefaultStructors(itlwm)
 };

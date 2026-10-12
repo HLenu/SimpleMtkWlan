@@ -118,10 +118,39 @@
 
 #define BUILD_BUG_ON(condition) ((void)sizeof(char[1 - 2*!!(condition)]))
 
+#ifdef __cplusplus
+extern "C"
+#endif
+void mtk_log(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+extern volatile int mtk_verbose_scans;
+#ifdef __cplusplus
+}
+#endif
+
+/* kprintf only reaches the log with debug boot flags; keep these in the driver log. */
 #define XYLog(fmt, x...)\
 do\
 {\
-kprintf("%s: " fmt, "SimpleMtkWlan", ##x);\
+mtk_log("%s: " fmt, "SimpleMtkWlan", ##x);\
+}while(0)
+
+/*
+ * Function and state-change traces fire on every idle scan cycle. Log them
+ * only while scans are verbose (see mtk_verbose_scans), and at most 64 times
+ * per call site otherwise, so they cannot push a join attempt out of the log.
+ */
+#define XYTrace(fmt, x...)\
+do\
+{\
+static unsigned _xy_count;\
+if (mtk_verbose_scans > 0 || _xy_count < 64) {\
+_xy_count++;\
+mtk_log("%s: " fmt, "SimpleMtkWlan", ##x);\
+}\
 }while(0)
 
 typedef UInt8  u8;

@@ -148,6 +148,10 @@ ieee80211_begin_cache_bgscan(struct _ifnet *ifp)
     if ((ic->ic_flags & IEEE80211_F_RSNON) && !ic->ic_bss->ni_port_valid)
         return;
     
+    /* Without background scans keep the cached results instead of flushing them. */
+    if (ic->ic_bgscan_start == NULL)
+        return;
+    
     ic->ic_flags |= IEEE80211_F_DISABLE_BG_AUTO_CONNECT;
     
     //if last cache scan is 5 minutes ago, clear the nodes and rescan.
@@ -174,7 +178,7 @@ ieee80211_bgscan_timeout(void *arg)
 void
 ieee80211_channel_init(struct _ifnet *ifp)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     struct ieee80211_channel *c;
     int i;
@@ -273,7 +277,7 @@ ieee80211_ifattach(struct _ifnet *ifp, IOEthernetController *controller)
 void
 ieee80211_ifdetach(struct _ifnet *ifp)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     
     timeout_del(&ic->ic_bgscan_timeout);
@@ -388,7 +392,7 @@ ieee80211_configure_ampdu_tx(struct ieee80211com *ic, int enable)
 void
 ieee80211_media_init(struct _ifnet *ifp)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
 #define    ADD(_ic, _s, _o) \
 ifmedia_add(&(_ic)->ic_media, \
 IFM_MAKEWORD(IFM_IEEE80211, (_s), (_o), 0), 0, NULL)

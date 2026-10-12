@@ -34,6 +34,7 @@
 #include <IOKit/pci/IOPCIDevice.h>
 #include <IOKit/IOWorkLoop.h>
 #include <IOKit/IOInterruptEventSource.h>
+#include <IOKit/IOFilterInterruptEventSource.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include <IOKit/IOMemoryDescriptor.h>
 #include <sys/kpi_mbuf.h>
@@ -181,7 +182,10 @@ public:
 	IOInterruptEventSource*	intr;
 	IOPCIDevice*		dev;
 	int (*func)(void* arg);
+	/* optional, runs at primary interrupt time; mask the device's interrupts here */
+	int (*filter)(void* arg);
 	void* arg;
+	int msi;		/* 1 when the MSI vector is used, 0 for legacy INTx */
 };
 typedef pci_intr_handle* pci_intr_handle_t;
 
@@ -223,6 +227,7 @@ struct bus_dmamap {
 	bus_size_t			dm_maxsize;
 	bus_size_t			dm_mapsize;
 	bus_size_t			dm_bounce_size;
+	int				dm_maxsegs;	/* nsegments from bus_dmamap_create() */
 	bus_dma_segment_t		dm_segs[23];
 };
 typedef struct bus_dmamap* bus_dmamap_t;

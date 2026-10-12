@@ -446,7 +446,12 @@ ieee80211_inputm(struct _ifnet *ifp, mbuf_t m, struct ieee80211_node *ni,
         ni->ni_rstamp = rxi->rxi_tstamp;
         ni->ni_inact = 0;
         
-        if (ic->ic_state == IEEE80211_S_RUN && ic->ic_bgscan_start) {
+        /*
+         * SimpleMtkWlan: no automatic RSSI-triggered roaming scans (they
+         * started ~0.5 s after association and lost the DHCP reply); user
+         * requested scans still run through ieee80211_begin_cache_bgscan().
+         */
+        if (0 && ic->ic_state == IEEE80211_S_RUN && ic->ic_bgscan_start) {
             /* Cancel or start background scan based on RSSI. */
             if ((*ic->ic_node_checkrssi)(ic, ni))
                 timeout_del(&ic->ic_bgscan_timeout);
@@ -603,9 +608,24 @@ ieee80211_inputm(struct _ifnet *ifp, mbuf_t m, struct ieee80211_node *ni,
                         goto err;
                     }
                     /* do software decryption */
+                    {
+                        /* Keys installed in hardware have no software context. */
+                        static unsigned swdec_log;
+                        if (swdec_log < 24) {
+                            swdec_log++;
+                            XYLog("rx needs sw decrypt fc=%02x/%02x len=%zu a1=%02x:%02x:%02x:%02x:%02x:%02x keyid=%d\n",
+                                  wh->i_fc[0], wh->i_fc[1], (size_t)mbuf_pkthdr_len(m),
+                                  wh->i_addr1[0], wh->i_addr1[1], wh->i_addr1[2],
+                                  wh->i_addr1[3], wh->i_addr1[4], wh->i_addr1[5],
+                                  mbuf_len(m) >= (size_t)hdrlen + 4 ?
+                                  (mtod(m, uint8_t *)[hdrlen + 3] >> 6) & 3 : -1);
+                        }
+                    }
                     m = ieee80211_decrypt(ic, m, ni);
                     if (m == NULL) {
                         ic->ic_stats.is_rx_wepfail++;
+                        XYLog("rx sw decrypt failed (wepfail=%u)\n",
+                              ic->ic_stats.is_rx_wepfail);
                         goto err;
                     }
                 } else {
@@ -2862,7 +2882,7 @@ void
 ieee80211_recv_deauth(struct ieee80211com *ic, mbuf_t m,
                       struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     const struct ieee80211_frame *wh;
     const u_int8_t *frm;
     u_int16_t reason;
@@ -2928,7 +2948,7 @@ void
 ieee80211_recv_disassoc(struct ieee80211com *ic, mbuf_t m,
                         struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     const struct ieee80211_frame *wh;
     const u_int8_t *frm;
     u_int16_t reason;

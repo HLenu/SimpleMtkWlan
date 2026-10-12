@@ -42,6 +42,8 @@ public:
     virtual const char *getFirmwareCountryCode() = 0;
 
     virtual uint32_t getTxQueueSize() = 0;
+
+    virtual uint32_t getRxRateKbps() = 0;
 };
 
 #endif /* MtkDriverInfo_h */

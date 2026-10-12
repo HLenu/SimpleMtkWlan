@@ -83,7 +83,7 @@ int
 ieee80211_send_eapol_key(struct ieee80211com *ic, mbuf_t m,
                          struct ieee80211_node *ni, const struct ieee80211_ptk *ptk)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct _ifnet *ifp = &ic->ic_if;
     struct ether_header *eh;
     struct ieee80211_eapol_key *key;
@@ -283,7 +283,7 @@ ieee80211_get_eapol_key(int flags, int type, u_int pktlen)
 int
 ieee80211_send_4way_msg1(struct ieee80211com *ic, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_eapol_key *key;
     mbuf_t m;
     u_int16_t info, keylen;
@@ -343,7 +343,7 @@ int
 ieee80211_send_4way_msg2(struct ieee80211com *ic, struct ieee80211_node *ni,
                          const u_int8_t *replaycnt, const struct ieee80211_ptk *tptk)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_eapol_key *key;
     mbuf_t m;
     u_int16_t info;
@@ -397,7 +397,7 @@ ieee80211_send_4way_msg2(struct ieee80211com *ic, struct ieee80211_node *ni,
 int
 ieee80211_send_4way_msg3(struct ieee80211com *ic, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_eapol_key *key;
     struct ieee80211_key *k = NULL;
     mbuf_t m;
@@ -478,7 +478,7 @@ ieee80211_send_4way_msg3(struct ieee80211com *ic, struct ieee80211_node *ni)
 int
 ieee80211_send_4way_msg4(struct ieee80211com *ic, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_eapol_key *key;
     mbuf_t m;
     u_int16_t info;
@@ -608,7 +608,7 @@ int
 ieee80211_send_group_msg2(struct ieee80211com *ic, struct ieee80211_node *ni,
                           const struct ieee80211_key *k)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_eapol_key *key;
     u_int16_t info;
     mbuf_t m;
@@ -654,7 +654,7 @@ int
 ieee80211_send_eapol_key_req(struct ieee80211com *ic,
                              struct ieee80211_node *ni, u_int16_t info, u_int64_t tsc)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_eapol_key *key;
     mbuf_t m;
     

@@ -678,6 +678,7 @@ void	ieee80211_ifattach(struct _ifnet *, IOEthernetController *controller);
 void	ieee80211_ifdetach(struct _ifnet *);
 void	ieee80211_channel_init(struct _ifnet *);
 void	ieee80211_media_init(struct _ifnet *);
+void	ieee80211_configure_ampdu_tx(struct ieee80211com *, int);
 int	ieee80211_media_change(struct _ifnet *);
 void	ieee80211_media_status(struct _ifnet *, struct ifmediareq *);
 int	ieee80211_ioctl(struct _ifnet *, u_long, caddr_t);

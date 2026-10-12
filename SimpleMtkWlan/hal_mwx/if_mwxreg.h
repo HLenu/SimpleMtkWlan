@@ -1400,6 +1400,128 @@ struct sta_rec_phy {
 	uint8_t		rsv[2];
 } __packed;
 
+/* HT/VHT/HE station records, Linux mt76_connac_mcu.h */
+#define	STA_REC_BA			0x06
+struct sta_rec_ba {
+	uint16_t	tag;
+	uint16_t	len;
+	uint8_t		tid;
+	uint8_t		ba_type;
+	uint8_t		amsdu;
+	uint8_t		ba_en;
+	uint16_t	ssn;
+	uint16_t	winsize;
+} __packed;
+
+#define	STA_REC_HT			0x09
+struct sta_rec_ht {
+	uint16_t	tag;
+	uint16_t	len;
+	uint16_t	ht_cap;
+	uint16_t	rsv;
+} __packed;
+
+#define	STA_REC_VHT			0x0a
+struct sta_rec_vht {
+	uint16_t	tag;
+	uint16_t	len;
+	uint32_t	vht_cap;
+	uint16_t	vht_rx_mcs_map;
+	uint16_t	vht_tx_mcs_map;
+	uint8_t		rts_bw_sig;
+	uint8_t		rsv[3];
+} __packed;
+
+#define	CMD_HE_MCS_BW80			0
+#define	CMD_HE_MCS_BW160		1
+#define	CMD_HE_MCS_BW8080		2
+#define	CMD_HE_MCS_BW_NUM		3
+
+#define	STA_REC_HE			0x0e
+struct sta_rec_he {
+	uint16_t	tag;
+	uint16_t	len;
+	uint32_t	he_cap;
+	uint8_t		t_frame_dur;
+	uint8_t		max_ampdu_exp;
+	uint8_t		bw_set;
+	uint8_t		device_class;
+	uint8_t		dcm_tx_mode;
+	uint8_t		dcm_tx_max_nss;
+	uint8_t		dcm_rx_mode;
+	uint8_t		dcm_rx_max_nss;
+	uint8_t		dcm_max_ru;
+	uint8_t		punc_pream_rx;
+	uint8_t		pkt_ext;
+	uint8_t		rsv1;
+	uint16_t	max_nss_mcs[CMD_HE_MCS_BW_NUM];
+	uint8_t		rsv2[2];
+} __packed;
+
+#define	STA_REC_HE_CAP_HTC			(1U << 0)
+#define	STA_REC_HE_CAP_BQR			(1U << 1)
+#define	STA_REC_HE_CAP_BSR			(1U << 2)
+#define	STA_REC_HE_CAP_OM			(1U << 3)
+#define	STA_REC_HE_CAP_AMSDU_IN_AMPDU		(1U << 4)
+#define	STA_REC_HE_CAP_LDPC			(1U << 6)
+#define	STA_REC_HE_CAP_TRIG_CQI_FK		(1U << 7)
+#define	STA_REC_HE_CAP_PARTIAL_BW_EXT_RANGE	(1U << 8)
+#define	STA_REC_HE_CAP_LE_EQ_80M_TX_STBC	(1U << 9)
+#define	STA_REC_HE_CAP_LE_EQ_80M_RX_STBC	(1U << 10)
+#define	STA_REC_HE_CAP_GT_80M_TX_STBC		(1U << 11)
+#define	STA_REC_HE_CAP_GT_80M_RX_STBC		(1U << 12)
+#define	STA_REC_HE_CAP_SU_PPDU_1LTF_8US_GI	(1U << 13)
+#define	STA_REC_HE_CAP_SU_MU_PPDU_4LTF_8US_GI	(1U << 14)
+#define	STA_REC_HE_CAP_ER_SU_PPDU_1LTF_8US_GI	(1U << 15)
+#define	STA_REC_HE_CAP_ER_SU_PPDU_4LTF_8US_GI	(1U << 16)
+#define	STA_REC_HE_CAP_NDP_4LTF_3DOT2MS_GI	(1U << 17)
+#define	STA_REC_HE_CAP_BW20_RU242_SUPPORT	(1U << 18)
+#define	STA_REC_HE_CAP_TX_1024QAM_UNDER_RU242	(1U << 19)
+#define	STA_REC_HE_CAP_RX_1024QAM_UNDER_RU242	(1U << 20)
+
+#define	STA_REC_HW_AMSDU		0x0f
+struct sta_rec_amsdu {
+	uint16_t	tag;
+	uint16_t	len;
+	uint8_t		max_amsdu_num;
+	uint8_t		max_mpdu_size;
+	uint8_t		amsdu_en;
+	uint8_t		rsv;
+} __packed;
+
+#define	STA_REC_HE_V2			0x19
+struct sta_rec_he_v2 {
+	uint16_t	tag;
+	uint16_t	len;
+	uint8_t		he_mac_cap[6];
+	uint8_t		he_phy_cap[11];
+	uint8_t		pkt_ext;
+	uint16_t	max_nss_mcs[CMD_HE_MCS_BW_NUM];
+} __packed;
+
+#define	MT_BA_TYPE_ORIGINATOR		1
+#define	MT_BA_TYPE_RECIPIENT		2
+#define	RST_BA_MAC_TID_MATCH		0
+
+/* BSS info HE TLVs (UNI_BSS_INFO_HE_BASIC / UNI_BSS_INFO_BSS_COLOR) */
+struct bss_info_uni_he {
+	uint16_t	tag;
+	uint16_t	len;
+	uint16_t	he_rts_thres;
+	uint8_t		he_pe_duration;
+	uint8_t		su_disable;
+	uint16_t	max_nss_mcs[CMD_HE_MCS_BW_NUM];
+	uint8_t		rsv[2];
+} __packed;
+
+struct bss_info_uni_bss_color {
+	uint16_t	tag;
+	uint16_t	len;
+	uint8_t		enable;
+	uint8_t		bss_color;
+	uint8_t		rsv[2];
+} __packed;
+
 /* WTBL REC */
 #define	WTBL_RESET_AND_SET	1
 #define	WTBL_SET		2
@@ -1432,6 +1554,51 @@ struct wtbl_rx {
 	uint8_t		rca2;
 	uint8_t		rv;
 	uint8_t		rsv[4];
+} __packed;
+
+#define	WTBL_HT				0x02
+struct wtbl_ht {
+	uint16_t	tag;
+	uint16_t	len;
+	uint8_t		ht;
+	uint8_t		ldpc;
+	uint8_t		af;
+	uint8_t		mm;
+	uint8_t		rsv[4];
+} __packed;
+
+#define	WTBL_VHT			0x03
+struct wtbl_vht {
+	uint16_t	tag;
+	uint16_t	len;
+	uint8_t		ldpc;
+	uint8_t		dyn_bw;
+	uint8_t		vht;
+	uint8_t		txop_ps;
+	uint8_t		rsv[4];
+} __packed;
+
+#define	WTBL_BA				0x08
+struct wtbl_ba {
+	uint16_t	tag;
+	uint16_t	len;
+	/* common */
+	uint8_t		tid;
+	uint8_t		ba_type;
+	uint8_t		rsv0[2];
+	/* originator only */
+	uint16_t	sn;
+	uint8_t		ba_en;
+	uint8_t		ba_winsize_idx;
+	/* originator & recipient */
+	uint16_t	ba_winsize;
+	/* recipient only */
+	uint8_t		peer_addr[IEEE80211_ADDR_LEN];
+	uint8_t		rst_ba_tid;
+	uint8_t		rst_ba_sel;
+	uint8_t		rst_ba_sb;
+	uint8_t		band_idx;
+	uint8_t		rsv1[4];
 } __packed;
 
 #define	WTBL_HDR_TRANS			0x06
@@ -1572,6 +1739,11 @@ enum mt76_phy_type {
 #define	CONN_STATE_CONNECT		1
 #define	CONN_STATE_PORT_SECURE		2
 
+/* STA_REC_STATE values, Linux enum mt76_sta_info_state */
+#define	MWX_STA_STATE_NONE		0
+#define	MWX_STA_STATE_AUTH		1
+#define	MWX_STA_STATE_ASSOC		2
+
 #define	DEV_INFO_ACTIVE			0
 
 #define	PHY_TYPE_BIT_HR_DSSS		(1U << 0)
@@ -1581,7 +1753,15 @@ enum mt76_phy_type {
 #define	PHY_TYPE_BIT_VHT		(1U << 5)
 #define	PHY_TYPE_BIT_HE			(1U << 6)
 
-/* P-RXV DW0 */
+/* P-RXV DW0: rate of the received PPDU (Linux mt76_connac2_mac.h) */
+#define	MT_PRXV_TX_RATE			GENMASK(6, 0)
+#define	MT_PRXV_NSTS			GENMASK(9, 7)
+#define	MT_PRXV_FRAME_MODE		GENMASK(14, 12)
+#define	MT_PRXV_HT_SGI			GENMASK(16, 15)
+#define	MT_PRXV_HT_STBC			GENMASK(23, 22)
+#define	MT_PRXV_TX_MODE			GENMASK(27, 24)
+
+/* P-RXV DW1 */
 #define	MT_PRXV_RCPIX_MASK		0x000000ff
 #define	MT_PRXV_RCPI0_SHIFT		0
 #define	MT_PRXV_RCPI1_SHIFT		8

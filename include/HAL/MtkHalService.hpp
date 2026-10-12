@@ -49,6 +49,9 @@ public:
     virtual IOReturn enable(IONetworkInterface *interface) = 0;
     
     virtual IOReturn disable(IONetworkInterface *interface) = 0;
+
+    /* Leave the card in a clean state for the next OS (power-off/restart). */
+    virtual void shutdownHardware() {}
     
     virtual struct ieee80211com *get80211Controller() = 0;
     

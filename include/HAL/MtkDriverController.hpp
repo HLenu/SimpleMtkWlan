@@ -30,6 +30,10 @@ public:
     virtual void clearScanningFlags() = 0;
     
     virtual IOReturn setMulticastList(IOEthernetAddress *addr, int count) = 0;
+
+    virtual uint32_t getPhyLimit() = 0;
+
+    virtual IOReturn setPhyLimit(uint32_t limit) = 0;
 };
 
 #endif /* MtkDriverController_h */

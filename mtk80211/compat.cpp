@@ -124,10 +124,35 @@ void interruptTrampoline(OSObject *ih, IOInterruptEventSource *, int count) {
 	(void)_ih->func(_ih->arg); // jump to actual interrupt handler
 }
 
+static bool interruptFilterTrampoline(OSObject *ih, IOFilterInterruptEventSource *) {
+	/* primary interrupt context: no allocation, no locks */
+	pci_intr_handle* _ih = (pci_intr_handle *)ih;
+	if (_ih->filter != NULL)
+		return _ih->filter(_ih->arg) != 0;
+	return true;
+}
+
 void* pci_intr_establish(pci_chipset_tag_t pc, pci_intr_handle_t ih, int level, int (*handler)(void *), void *arg) {
+	int index = 0, type;
+
 	ih->arg = arg;
 	ih->func = handler;
-	ih->intr = IOInterruptEventSource::interruptEventSource(ih, &interruptTrampoline, ih->dev);
+	/*
+	 * Interrupt index 0 of a PCI device is the legacy INTx pin. Use the MSI
+	 * vector like itlwm and Linux (mt7921e runs on PCI-MSI, edge): on INTx
+	 * the card's RX interrupts were intermittently not delivered, so firmware
+	 * replies and scan results sat in the ring until some later interrupt.
+	 */
+	ih->msi = 0;
+	for (int i = 0; ih->dev->getInterruptType(i, &type) == kIOReturnSuccess; i++) {
+		if (type & kIOInterruptTypePCIMessaged) {
+			index = i;
+			ih->msi = 1;
+			break;
+		}
+	}
+	ih->intr = IOFilterInterruptEventSource::filterInterruptEventSource(ih,
+	    &interruptTrampoline, &interruptFilterTrampoline, ih->dev, index);
 	
 	if (ih->intr == 0)
 		return 0;
@@ -201,6 +226,7 @@ int bus_dmamap_create(bus_dma_tag_t tag, bus_size_t size, int nsegments, bus_siz
 	*dmamp = new bus_dmamap;
 	memset(*dmamp, 0, sizeof(**dmamp));
 	(*dmamp)->dm_maxsize = size;
+	(*dmamp)->dm_maxsegs = (nsegments > 0 && nsegments < 23) ? nsegments : 23;
 	(*dmamp)->cursor = IOMbufNaturalMemoryCursor::withSpecification(maxsegsz, nsegments);
 	if ((*dmamp)->cursor == 0)
 		return 1;
@@ -369,7 +395,13 @@ int bus_dmamap_load(bus_dmamap_t map, mbuf_t mb) {
 	}
 	map->dm_mbuf = mb;
 	map->dm_bounce = false;
-	map->dm_nsegs = map->cursor->getPhysicalSegmentsWithCoalesce(mb, segs, 23);
+	/*
+	 * The count passed here replaces the cursor's own limit, so pass the
+	 * map's nsegments: the cursor then coalesces longer chains. With 23,
+	 * mwx (4 buffer pointers per TXWI) wrote past the descriptor.
+	 */
+	map->dm_nsegs = map->cursor->getPhysicalSegmentsWithCoalesce(mb, segs,
+	    map->dm_maxsegs);
 	if (map->dm_nsegs == 0)
 		return 1;
 	size_t pktlen = mbuf_pkthdr_len(mb);

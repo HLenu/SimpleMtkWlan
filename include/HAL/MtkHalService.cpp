@@ -62,14 +62,51 @@ getMainWorkLoop()
 void MtkHalService::
 wakeupOn(void *ident)
 {
-//    XYLog("%s\n", __FUNCTION__);
+//    XYTrace("%s\n", __FUNCTION__);
     wakeup(ident);
+}
+
+/*
+ * Runs with the command gate closed. commandSleep() opens the gate while the
+ * thread sleeps, so the work loop keeps delivering interrupts. Kernel
+ * wakeup(ident) and commandWakeup(ident) both wake this sleep (same event).
+ */
+static IOReturn
+gateSleepAction(OSObject *owner, void *ident, void *timo, void *gate, void *)
+{
+    IOCommandGate *commandGate = (IOCommandGate *)gate;
+    uint64_t ns = *(uint64_t *)timo;
+    uint64_t deadline;
+    IOReturn ret;
+
+    if (ns == 0) {
+        ret = commandGate->commandSleep(ident, THREAD_INTERRUPTIBLE);
+    } else {
+        if (ns <= UINT32_MAX)
+            clock_interval_to_deadline((uint32_t)ns, kNanosecondScale, &deadline);
+        else
+            clock_interval_to_deadline((uint32_t)(ns / 1000000), kMillisecondScale, &deadline);
+        ret = commandGate->commandSleep(ident, deadline, THREAD_INTERRUPTIBLE);
+    }
+    return ret == THREAD_AWAKENED ? kIOReturnSuccess : kIOReturnTimeout;
 }
 
 int MtkHalService::
 tsleep_nsec(void *ident, int priority, const char *wmesg, uint64_t timo)
 {
 //    XYLog("%s %s\n", __FUNCTION__, wmesg);
+    /*
+     * Sleep through the command gate like itlwm does. IONetworkController
+     * calls enable() with this work loop's gate closed, and msleep() on a
+     * private lock kept it closed, so the interrupt handler (same work loop)
+     * could not run: MCU replies were only handled after the wait timed out.
+     */
+    if (this->mainCommandGate != NULL) {
+        IOReturn ret = this->mainCommandGate->runAction(gateSleepAction, ident,
+            &timo, this->mainCommandGate);
+        return ret == kIOReturnSuccess ? 0 : EWOULDBLOCK;
+    }
+
     struct timespec ts;
     int err;
     memset(&ts, 0, sizeof(struct timespec));

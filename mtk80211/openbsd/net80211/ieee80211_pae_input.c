@@ -98,7 +98,7 @@ void
 ieee80211_eapol_key_input(struct ieee80211com *ic, mbuf_t m,
                           struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct _ifnet *ifp = &ic->ic_if;
     struct ether_header *eh;
     struct ieee80211_eapol_key *key;
@@ -210,7 +210,7 @@ void
 ieee80211_recv_4way_msg1(struct ieee80211com *ic,
                          struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_ptk tptk;
     struct ieee80211_pmk *pmk;
     const u_int8_t *frm, *efrm;
@@ -308,7 +308,7 @@ ieee80211_recv_4way_msg2(struct ieee80211com *ic,
                          struct ieee80211_eapol_key *key, struct ieee80211_node *ni,
                          const u_int8_t *rsnie)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_ptk tptk;
     
     if (ic->ic_opmode != IEEE80211_M_HOSTAP &&
@@ -375,7 +375,7 @@ int
 ieee80211_must_update_group_key(struct ieee80211_key *k, const uint8_t *gtk,
                                 int len)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     return (k->k_cipher == IEEE80211_CIPHER_NONE || k->k_len != len ||
             memcmp(k->k_key, gtk, len) != 0);
 }
@@ -387,7 +387,7 @@ void
 ieee80211_recv_4way_msg3(struct ieee80211com *ic,
                          struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_ptk tptk;
     struct ieee80211_key *k;
     const u_int8_t *frm, *efrm;
@@ -720,7 +720,7 @@ void
 ieee80211_recv_4way_msg4(struct ieee80211com *ic,
                          struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     if (ic->ic_opmode != IEEE80211_M_HOSTAP &&
         ic->ic_opmode != IEEE80211_M_IBSS)
         return;
@@ -793,7 +793,7 @@ void
 ieee80211_recv_4way_msg2or4(struct ieee80211com *ic,
                             struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     const u_int8_t *frm, *efrm;
     const u_int8_t *rsnie;
     
@@ -841,7 +841,7 @@ void
 ieee80211_recv_rsn_group_msg1(struct ieee80211com *ic,
                               struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_key *k;
     const u_int8_t *frm, *efrm;
     const u_int8_t *gtk, *igtk;
@@ -1008,7 +1008,7 @@ void
 ieee80211_recv_wpa_group_msg1(struct ieee80211com *ic,
                               struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_key *k;
     u_int16_t info;
     u_int8_t kid;
@@ -1115,7 +1115,7 @@ void
 ieee80211_recv_group_msg2(struct ieee80211com *ic,
                           struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     if (ic->ic_opmode != IEEE80211_M_HOSTAP &&
         ic->ic_opmode != IEEE80211_M_IBSS)
         return;
@@ -1169,7 +1169,7 @@ void
 ieee80211_recv_eapol_key_req(struct ieee80211com *ic,
                              struct ieee80211_eapol_key *key, struct ieee80211_node *ni)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     u_int16_t info;
     
     if (ic->ic_opmode != IEEE80211_M_HOSTAP &&

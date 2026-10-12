@@ -42,6 +42,7 @@ const IOControlMethodAction MtkWlanUserClient::sMethods[IOCTL_ID_MAX] {
     sSCAN_RESULT,
     sTX_POWER_LEVEL,
     sNW_BSSID,
+    sPHY_LIMIT,
 };
 
 bool MtkWlanUserClient::initWithTask(task_t owningTask, void *securityID, UInt32 type, OSDictionary *properties)
@@ -91,12 +92,16 @@ IOReturn MtkWlanUserClient::externalMethod(uint32_t selector, IOExternalMethodAr
     bool isSet = selector & IOCTL_MASK;
     selector &= ~IOCTL_MASK;
 //    IOLog("externalMethod invoke. selector=0x%X isSet=%d\n", selector, isSet);
-    if (selector < 0 || selector > IOCTL_ID_MAX) {
+    if (selector >= IOCTL_ID_MAX) {
         return super::externalMethod(selector, arguments, NULL, this, NULL);
     }
     void *data = isSet ? (void *)arguments->structureInput : (void *)arguments->structureOutput;
     if (!data) {
         return kIOReturnError;
+    }
+    if (selector == IOCTL_80211_PHY_LIMIT &&
+        (isSet ? arguments->structureInputSize : arguments->structureOutputSize) != sizeof(ioctl_phy_limit)) {
+        return kIOReturnBadArgument;
     }
     return sMethods[selector](this, data, isSet);
 }
@@ -121,9 +126,6 @@ sSTA_INFO(OSObject* target, void* data, bool isSet)
     struct ioctl_sta_info *st = (struct ioctl_sta_info *)data;
     struct ieee80211com *ic = that->fDriver->fHalService->get80211Controller();
     struct ieee80211_node *ic_bss = ic->ic_bss;
-    int nss;
-    int sgi;
-    int index = 0;
     if (isSet) {
         return kIOReturnError;
     }
@@ -137,7 +139,10 @@ sSTA_INFO(OSObject* target, void* data, bool isSet)
         return kIOReturnError;
     }
     st->version = IOCTL_VERSION;
-    st->op_mode = ic->ic_curmode > 0 ? (enum mtk_phy_mode)(ic->ic_curmode - 1) : MTK80211_MODE_11A;
+    st->op_mode = (ic_bss->ni_flags & IEEE80211_NODE_HE) ? MTK80211_MODE_11AX :
+        (ic_bss->ni_flags & IEEE80211_NODE_VHT) ? MTK80211_MODE_11AC :
+        (ic_bss->ni_flags & IEEE80211_NODE_HT) ? MTK80211_MODE_11N :
+        ic->ic_curmode > 0 ? (enum mtk_phy_mode)(ic->ic_curmode - 1) : MTK80211_MODE_11A;
     st->max_mcs = ic_bss->ni_txmcs;
     st->cur_mcs = ic_bss->ni_txmcs;
     st->channel = ieee80211_chan2ieee(ic, ic_bss->ni_chan);
@@ -159,49 +164,27 @@ sSTA_INFO(OSObject* target, void* data, bool isSet)
     }
     st->rssi = -(0 - kMtkMinDbm - ic_bss->ni_rssi);
     st->noise = that->fDriver->fHalService->getDriverInfo()->getBSSNoise();
-    sgi = ieee80211_node_supports_sgi(ic_bss);
-    if (ic->ic_curmode == IEEE80211_MODE_11AC) {
-        if (sgi) {
-            index += 1;
-        }
-        nss = that->fDriverInfo->getTxNSS();
-        switch (ic_bss->ni_chw) {
-            case IEEE80211_CHAN_WIDTH_40:
-                index += 4;
-                break;
-            case IEEE80211_CHAN_WIDTH_80:
-                index += 8;
-                break;
-            case IEEE80211_CHAN_WIDTH_80P80:
-            case IEEE80211_CHAN_WIDTH_160:
-                index += 12;
-                break;
-
-            default:
-                break;
-        }
-        index += 2 * (nss - 1);
-        const struct ieee80211_vht_rateset *rs = &ieee80211_std_ratesets_11ac[index];
-        st->rate = rs->rates[ic_bss->ni_txmcs % rs->nrates] / 2;
-    } else if (ic->ic_curmode == IEEE80211_MODE_11N) {
-        int is_40mhz = ic_bss->ni_chw == IEEE80211_CHAN_WIDTH_40;
-        if (sgi) {
-            index += 1;
-        }
-        if (is_40mhz) {
-            index += (IEEE80211_HT_RATESET_MIMO4_SGI + 1);
-        }
-        index += (ic_bss->ni_txmcs / 16);
-        nss = ic_bss->ni_txmcs / 8 + 1;
-        index += 2 * (nss - 1);
-        st->rate = ieee80211_std_ratesets_11n[index].rates[ic_bss->ni_txmcs % 8] / 2;
-    } else {
-        st->rate = ic_bss->ni_rates.rs_rates[ic_bss->ni_txrate];
-    }
+    st->rate = (that->fDriverInfo->getRxRateKbps() + 500) / 1000;
     memset(st->ssid, 0, sizeof(st->ssid));
     bcopy(ic->ic_des_essid, st->ssid, ic->ic_des_esslen);
     memset(st->bssid, 0, sizeof(st->bssid));
     bcopy(ic->ic_bss->ni_bssid, st->bssid, ETHER_ADDR_LEN);
+    return kIOReturnSuccess;
+}
+
+IOReturn MtkWlanUserClient::
+sPHY_LIMIT(OSObject* target, void* data, bool isSet)
+{
+    MtkWlanUserClient *that = OSDynamicCast(MtkWlanUserClient, target);
+    struct ioctl_phy_limit *phy = (struct ioctl_phy_limit *)data;
+
+    if (isSet) {
+        if (phy->version != IOCTL_VERSION || phy->limit > 3)
+            return kIOReturnBadArgument;
+        return that->fDriverController->setPhyLimit(phy->limit);
+    }
+    phy->version = IOCTL_VERSION;
+    phy->limit = that->fDriverController->getPhyLimit();
     return kIOReturnSuccess;
 }
 

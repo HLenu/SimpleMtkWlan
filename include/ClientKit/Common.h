@@ -68,6 +68,11 @@ struct ioctl_power {
     unsigned int maxsleep;   //max sleep in ms
 };
 
+struct ioctl_phy_limit {
+    unsigned int version;
+    unsigned int limit; /* 0 legacy, 1 HT, 2 VHT, 3 HE */
+};
+
 enum mtk_80211_state {
     MTK80211_S_INIT    = 0,    /* default state */
     MTK80211_S_SCAN    = 1,    /* scanning */

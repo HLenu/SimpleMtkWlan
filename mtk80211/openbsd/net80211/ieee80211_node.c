@@ -599,7 +599,7 @@ ieee80211_match_ess(struct ieee80211_ess *ess, struct ieee80211_node *ni)
 void
 ieee80211_switch_ess(struct ieee80211com *ic)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct _ifnet		*ifp = &ic->ic_if;
     struct ieee80211_ess	*ess, *seless = NULL;
     struct ieee80211_node	*ni, *selni = NULL;
@@ -797,7 +797,7 @@ ieee80211_node_lateattach(struct _ifnet *ifp)
 void
 ieee80211_node_detach(struct _ifnet *ifp)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     
     if (ic->ic_bss != NULL) {
@@ -831,7 +831,7 @@ ieee80211_node_detach(struct _ifnet *ifp)
 void
 ieee80211_reset_scan(struct _ifnet *ifp)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     
     memcpy(ic->ic_chan_scan, ic->ic_chan_active,
@@ -860,7 +860,7 @@ ieee80211_node_raise_inact(void *arg, struct ieee80211_node *ni)
 void
 ieee80211_begin_scan(struct _ifnet *ifp)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211com *ic = (struct ieee80211com *)ifp;
     
     /*
@@ -942,7 +942,7 @@ ieee80211_next_scan(struct _ifnet *ifp)
 void
 ieee80211_create_ibss(struct ieee80211com* ic, struct ieee80211_channel *chan)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_node *ni;
     struct _ifnet *ifp = &ic->ic_if;
     
@@ -1143,6 +1143,23 @@ ieee80211_match_bss(struct ieee80211com *ic, struct ieee80211_node *ni,
             fail |= IEEE80211_NODE_ASSOCFAIL_WPA_PROTO;
     }
     
+    /* Show why each AP of the network being joined was accepted or rejected. */
+    if (mtk_verbose_scans > 0 && ic->ic_des_esslen != 0 &&
+        ni->ni_esslen == ic->ic_des_esslen &&
+        memcmp(ni->ni_essid, ic->ic_des_essid, ic->ic_des_esslen) == 0) {
+        XYLog("join candidate %s chan=%d rssi=%d fail=0x%x "
+              "ap: caps=0x%x protos=0x%x akms=0x%x ciphers=0x%x group=0x%x rsncaps=0x%x mgmt=0x%x "
+              "us: flags=0x%x protos=0x%x akms=0x%x ciphers=0x%x mfp=%d\n",
+              ether_sprintf(ni->ni_bssid), ieee80211_chan2ieee(ic, ni->ni_chan),
+              ni->ni_rssi, fail, ni->ni_capinfo, ni->ni_rsnprotos, ni->ni_rsnakms,
+              ni->ni_rsnciphers, ni->ni_rsngroupcipher, ni->ni_rsncaps,
+              ni->ni_rsngroupmgmtcipher,
+              ic->ic_flags & (IEEE80211_F_RSNON | IEEE80211_F_PSK | IEEE80211_F_WEPON |
+                  IEEE80211_F_AUTO_JOIN | IEEE80211_F_DESBSSID),
+              ic->ic_rsnprotos, ic->ic_rsnakms, ic->ic_rsnciphers,
+              (ic->ic_caps & IEEE80211_C_MFP) != 0);
+    }
+
     if (ic->ic_if.if_flags & IFF_DEBUG && ieee80211_debug) {
         XYLog("%s: %c %s%c %3d%c %+4d %2dM%c %4s%c %7s%c %3s%c %.*s %s\n",
               ic->ic_if.if_xname,
@@ -1323,7 +1340,7 @@ struct ieee80211_node *
 ieee80211_node_choose_bss(struct ieee80211com *ic, int bgscan,
                           struct ieee80211_node **curbs)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct ieee80211_node *ni, *nextbs, *selbs = NULL,
     *selbs2 = NULL, *selbs5 = NULL;
     uint8_t min_5ghz_rssi;
@@ -1409,7 +1426,7 @@ ieee80211_end_scan(struct _ifnet *ifp)
     if (ic->ic_event_handler)
         (*ic->ic_event_handler)(ic, IEEE80211_EVT_SCAN_DONE, NULL);
     
-    if (ifp->if_flags & IFF_DEBUG)
+    if ((ifp->if_flags & IFF_DEBUG) && mtk_verbose_scans > 0)
         XYLog("%s: end %s scan\n", ifp->if_xname,
               bgscan ? (roamscan ? "roam" : "background") :
               ((ic->ic_flags & IEEE80211_F_ASCAN) ?
@@ -1487,6 +1504,9 @@ ieee80211_end_scan(struct _ifnet *ifp)
         ieee80211_switch_ess(ic);
     
     selbs = ieee80211_node_choose_bss(ic, bgscan, &curbs);
+    if (selbs == NULL && ic->ic_des_esslen != 0 && mtk_verbose_scans > 0)
+        XYLog("join: no AP for \"%.*s\" passed the checks after this scan\n",
+              ic->ic_des_esslen, ic->ic_des_essid);
     if (bgscan) {
         struct ieee80211_node_switch_bss_arg *arg;
         

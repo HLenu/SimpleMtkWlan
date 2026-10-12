@@ -60,6 +60,7 @@ private:
     static IOReturn sSCAN_RESULT(OSObject* target, void* data, bool isSet);
     static IOReturn sTX_POWER_LEVEL(OSObject* target, void* data, bool isSet);
     static IOReturn sNW_BSSID(OSObject* target, void* data, bool isSet);
+    static IOReturn sPHY_LIMIT(OSObject* target, void* data, bool isSet);
     static const IOControlMethodAction sMethods[IOCTL_ID_MAX];
     
 private:

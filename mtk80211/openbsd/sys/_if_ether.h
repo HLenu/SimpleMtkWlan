@@ -292,7 +292,7 @@ if_detach(struct _ifnet *ifp)
     return 0;
 }
 
-static inline int
+static inline void
 ether_ifattach(struct _ifnet *ifp, IOEthernetInterface *iface)
 {
     ifp->iface = iface;

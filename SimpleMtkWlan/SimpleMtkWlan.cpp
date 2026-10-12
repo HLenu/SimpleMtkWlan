@@ -20,6 +20,7 @@
 * GNU General Public License for more details.
 */
 #include "SimpleMtkWlan.hpp"
+#include "MtkLog.hpp"
 #include <linux/types.h>
 #include <linux/kernel.h>
 
@@ -33,6 +34,7 @@
 
 #define super IOEthernetController
 OSDefineMetaClassAndStructors(SimpleMtkWlan, IOEthernetController)
+OSDefineMetaClassAndStructors(itlwm, SimpleMtkWlan)
 OSDefineMetaClassAndStructors(CTimeout, OSObject)
 
 IOWorkLoop *_fWorkloop;
@@ -71,19 +73,69 @@ static void pciMsiXClearAndSet(IOPCIDevice *device, UInt8 msixCap, UInt16 clear,
     device->configWrite16(msixCap + PCI_MSIX_FLAGS, ctrl);
 }
 
+// Publishes the driver log on the PCI device, where it survives a failed start and
+// check.sh can read it without the unified log (unavailable in the installer).
+void SimpleMtkWlan::publishLog(IOService *target)
+{
+    if (!target)
+        return;
+    const size_t max = 65536;
+    char *buf = (char *)IOMalloc(max);
+    if (!buf)
+        return;
+    mtk_log_snapshot(buf, max);
+    OSString *str = OSString::withCString(buf);
+    if (str) {
+        target->setProperty("SimpleMtkWlanLog", str);
+        str->release();
+    }
+    IOFree(buf, max);
+}
+
+void SimpleMtkWlan::recordAttachStage(IOService *provider, const char *stage,
+                                    IOReturn result)
+{
+    setProperty("SimpleMtkWlanStage", stage);
+    setProperty("SimpleMtkWlanError", result, 32);
+    setProperty("SimpleMtkWlanVersion", SMTW_VERSION);
+    if (provider) {
+        // Keep the last stage on the PCI device even if start() fails and this
+        // controller is released before it can publish its user client.
+        provider->setProperty("SimpleMtkWlanStage", stage);
+        provider->setProperty("SimpleMtkWlanError", result, 32);
+        provider->setProperty("SimpleMtkWlanVersion", SMTW_VERSION);
+    }
+    mtk_log("SimpleMtkWlan %s: stage=%s result=0x%x\n", SMTW_VERSION, stage, result);
+    publishLog(provider);
+}
+
 IOService* SimpleMtkWlan::probe(IOService *provider, SInt32 *score)
 {
     bool isMatch = false;
-    super::probe(provider, score);
-    UInt8 msiCap;
-    UInt8 msixCap;
+    char off[4];
+    recordAttachStage(provider, "probe");
+    if (PE_parse_boot_argn("-mtkwlanoff", off, sizeof(off))) {
+        recordAttachStage(provider, "disabled-by-boot-arg", kIOReturnNotPermitted);
+        return NULL;
+    }
+    if (!super::probe(provider, score)) {
+        recordAttachStage(provider, "super-probe-failed", kIOReturnError);
+        return NULL;
+    }
+    UInt8 msiCap = 0;
+    UInt8 msixCap = 0;
     IOPCIDevice* device = OSDynamicCast(IOPCIDevice, provider);
     if (!device) {
+        recordAttachStage(provider, "not-a-pci-device", kIOReturnBadArgument);
         return NULL;
     }
     if (MtkMwx::mwx_match(device)) {
         isMatch = true;
         fHalService = new MtkMwx;
+        if (!fHalService) {
+            recordAttachStage(provider, "hal-allocation-failed", kIOReturnNoMemory);
+            return NULL;
+        }
     }
     if (isMatch) {
         device->findPCICapability(PCI_CAP_ID_MSIX, &msixCap);
@@ -95,13 +147,15 @@ IOService* SimpleMtkWlan::probe(IOService *provider, SInt32 *score)
             pciMsiSetEnable(device, msiCap, 1);
         }
         if (!msiCap && !msixCap) {
-            XYLog("%s No MSI cap\n", __FUNCTION__);
+            recordAttachStage(provider, "no-msi-capability", kIOReturnUnsupported);
             fHalService->release();
             fHalService = NULL;
             return NULL;
         }
+        recordAttachStage(provider, "pci-matched");
         return this;
     }
+    recordAttachStage(provider, "unsupported-pci-id", kIOReturnUnsupported);
     return NULL;
 }
 
@@ -208,6 +262,10 @@ void SimpleMtkWlan::joinSSID(const char *ssid_name, const char *ssid_pwd)
 void SimpleMtkWlan::associateSSID(const char *ssid, const char *pwd)
 {
     struct ieee80211com *ic = fHalService->get80211Controller();
+    // Log the next scans in full so the report shows why the join did or did not happen.
+    mtk_verbose_scans = 6;
+    mtk_log("SimpleMtkWlan: join request ssid_len=%zu password_len=%zu state=%d\n",
+            strlen(ssid), strlen(pwd), ic->ic_state);
     if (strlen(pwd) == 0) {
         memcpy(nwid.i_nwid, ssid, 32);
         nwid.i_len = strlen((char *)nwid.i_nwid);
@@ -292,61 +350,90 @@ void SimpleMtkWlan::associateSSID(const char *ssid, const char *pwd)
 bool SimpleMtkWlan::start(IOService *provider)
 {
     int boot_value = 0;
+    recordAttachStage(provider, "start");
     if (!super::start(provider)) {
+        recordAttachStage(provider, "super-start-failed", kIOReturnError);
         return false;
     }
     pciNub = OSDynamicCast(IOPCIDevice, provider);
     if (!pciNub) {
+        recordAttachStage(provider, "not-a-pci-device", kIOReturnBadArgument);
         return false;
     }
     pciNub->setBusMasterEnable(true);
     pciNub->setIOEnable(true);
     pciNub->setMemoryEnable(true);
     pciNub->configWrite8(0x41, 0);
-    if (pciNub->requestPowerDomainState(kIOPMPowerOn,
-                                        (IOPowerConnection *) getParentEntry(gIOPowerPlane), IOPMLowestState) != IOPMNoErr) {
+    IOReturn powerResult = pciNub->requestPowerDomainState(kIOPMPowerOn,
+        (IOPowerConnection *)getParentEntry(gIOPowerPlane), IOPMLowestState);
+    if (powerResult != IOPMNoErr) {
+        recordAttachStage(provider, "power-domain-failed", powerResult);
+        super::stop(provider);
         return false;
     }
     if (initPCIPowerManagment(pciNub) == false) {
+        recordAttachStage(provider, "pci-power-failed", kIOReturnError);
         super::stop(pciNub);
         return false;
     }
     if (_fWorkloop == NULL) {
-        XYLog("No _fWorkloop!!\n");
+        recordAttachStage(provider, "workloop-allocation-failed", kIOReturnNoMemory);
         super::stop(pciNub);
         releaseAll();
         return false;
     }
     _fCommandGate = IOCommandGate::commandGate(this, (IOCommandGate::Action)SimpleMtkWlan::tsleepHandler);
     if (_fCommandGate == 0) {
-        XYLog("No command gate!!\n");
+        recordAttachStage(provider, "command-gate-allocation-failed", kIOReturnNoMemory);
         super::stop(pciNub);
         releaseAll();
         return false;
     }
-    _fWorkloop->addEventSource(_fCommandGate);
-    const IONetworkMedium *primaryMedium;
-    if (!createMediumTables(&primaryMedium) ||
-        !setCurrentMedium(primaryMedium) || !setSelectedMedium(primaryMedium)) {
-        XYLog("setup medium fail\n");
+    IOReturn gateResult = _fWorkloop->addEventSource(_fCommandGate);
+    if (gateResult != kIOReturnSuccess) {
+        recordAttachStage(provider, "command-gate-add-failed", gateResult);
+        super::stop(provider);
         releaseAll();
         return false;
     }
-    fHalService->initWithController(this, _fWorkloop, _fCommandGate);
+    const IONetworkMedium *primaryMedium;
+    if (!createMediumTables(&primaryMedium) ||
+        !setCurrentMedium(primaryMedium) || !setSelectedMedium(primaryMedium)) {
+        recordAttachStage(provider, "network-medium-failed", kIOReturnError);
+        super::stop(provider);
+        releaseAll();
+        return false;
+    }
+    if (!fHalService->initWithController(this, _fWorkloop, _fCommandGate)) {
+        recordAttachStage(provider, "hal-init-failed", kIOReturnError);
+        super::stop(provider);
+        releaseAll();
+        return false;
+    }
     
     if (PE_parse_boot_argn("-novht", &boot_value, sizeof(boot_value)))
         fHalService->get80211Controller()->ic_userflags |= IEEE80211_F_NOVHT;
     if (PE_parse_boot_argn("-noht40", &boot_value, sizeof(boot_value)))
         fHalService->get80211Controller()->ic_userflags |= IEEE80211_F_NOHT40;
     
+    recordAttachStage(provider, "firmware-and-hardware-attach");
     if (!fHalService->attach(pciNub)) {
-        XYLog("attach fail\n");
+        recordAttachStage(provider, "firmware-or-hardware-attach-failed", kIOReturnError);
+        super::stop(pciNub);
+        releaseAll();
+        return false;
+    }
+    // The MAC address comes from the firmware during hardware init (mwx_preinit),
+    // whose failure attach() does not report. Without it the interface cannot exist.
+    if (IEEE80211_ADDR_EQ(etheranyaddr, fHalService->get80211Controller()->ic_myaddr)) {
+        recordAttachStage(provider, "hardware-init-failed", kIOReturnNotReady);
+        fHalService->detach(pciNub);
         super::stop(pciNub);
         releaseAll();
         return false;
     }
     if (!attachInterface((IONetworkInterface **)&fNetIf, true)) {
-        XYLog("attach to interface fail\n");
+        recordAttachStage(provider, "ethernet-interface-failed", kIOReturnError);
         fHalService->detach(pciNub);
         super::stop(pciNub);
         releaseAll();
@@ -354,7 +441,7 @@ bool SimpleMtkWlan::start(IOService *provider)
     }
     fWatchdogWorkLoop = IOWorkLoop::workLoop();
     if (fWatchdogWorkLoop == NULL) {
-        XYLog("init watchdog workloop fail\n");
+        recordAttachStage(provider, "watchdog-workloop-failed", kIOReturnNoMemory);
         fHalService->detach(pciNub);
         super::stop(pciNub);
         releaseAll();
@@ -362,13 +449,20 @@ bool SimpleMtkWlan::start(IOService *provider)
     }
     watchdogTimer = IOTimerEventSource::timerEventSource(this, OSMemberFunctionCast(IOTimerEventSource::Action, this, &SimpleMtkWlan::watchdogAction));
     if (!watchdogTimer) {
-        XYLog("init watchdog fail\n");
+        recordAttachStage(provider, "watchdog-timer-failed", kIOReturnNoMemory);
         fHalService->detach(pciNub);
         super::stop(pciNub);
         releaseAll();
         return false;
     }
-    fWatchdogWorkLoop->addEventSource(watchdogTimer);
+    IOReturn timerResult = fWatchdogWorkLoop->addEventSource(watchdogTimer);
+    if (timerResult != kIOReturnSuccess) {
+        recordAttachStage(provider, "watchdog-add-failed", timerResult);
+        fHalService->detach(pciNub);
+        super::stop(provider);
+        releaseAll();
+        return false;
+    }
     setLinkStatus(kIONetworkLinkValid);
     OSObject *wifiEntryObject = NULL;
     OSDictionary *wifiEntry = NULL;
@@ -400,11 +494,15 @@ bool SimpleMtkWlan::start(IOService *provider)
     }
     registerService();
     fNetIf->registerService();
+    recordAttachStage(provider, "registered");
     return true;
 }
 
 void SimpleMtkWlan::watchdogAction(IOTimerEventSource *timer)
 {
+    static uint32_t logPublishTick;
+    if ((++logPublishTick % 5) == 0)
+        publishLog(pciNub);
     struct _ifnet *ifp = getIfp();
     (*ifp->if_watchdog)(ifp);
     watchdogTimer->setTimeoutMS(kWatchDogTimerPeriod);
@@ -464,7 +562,7 @@ IOReturn SimpleMtkWlan::selectMedium(const IONetworkMedium *medium) {
 
 void SimpleMtkWlan::stop(IOService *provider)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     struct _ifnet *ifp = &fHalService->get80211Controller()->ic_ac.ac_if;
     super::stop(provider);
     setLinkStatus(kIONetworkLinkValid);
@@ -504,7 +602,7 @@ void SimpleMtkWlan::releaseAll()
 
 void SimpleMtkWlan::free()
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     if (fHalService != NULL) {
         fHalService->release();
         fHalService = NULL;
@@ -514,7 +612,7 @@ void SimpleMtkWlan::free()
 
 IOReturn SimpleMtkWlan::enable(IONetworkInterface *netif)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     super::enable(netif);
     _fCommandGate->enable();
     fHalService->enable(netif);
@@ -523,9 +621,37 @@ IOReturn SimpleMtkWlan::enable(IONetworkInterface *netif)
     return kIOReturnSuccess;
 }
 
+static IOReturn shutdownRadioAction(OSObject *owner, void *, void *, void *, void *)
+{
+    SimpleMtkWlan *dev = OSDynamicCast(SimpleMtkWlan, owner);
+    if (dev != NULL)
+        dev->shutdownRadio();
+    return kIOReturnSuccess;
+}
+
+void SimpleMtkWlan::shutdownRadio()
+{
+    watchdogTimer->cancelTimeout();
+    if (fNetIf != NULL)
+        fHalService->disable(fNetIf);
+    fHalService->shutdownHardware();
+}
+
+// Without this the firmware keeps scanning (and the driver logging) through
+// power-off until the machine resets, and the card starts the next boot busy.
+void SimpleMtkWlan::systemWillShutdown(IOOptionBits specifier)
+{
+    if ((specifier == kIOMessageSystemWillPowerOff ||
+         specifier == kIOMessageSystemWillRestart) && _fCommandGate != NULL) {
+        mtk_log("SimpleMtkWlan: system shutdown, turning the radio off\n");
+        _fCommandGate->runAction(shutdownRadioAction);
+    }
+    super::systemWillShutdown(specifier);
+}
+
 IOReturn SimpleMtkWlan::disable(IONetworkInterface *netif)
 {
-    XYLog("%s\n", __FUNCTION__);
+    XYTrace("%s\n", __FUNCTION__);
     super::disable(netif);
     watchdogTimer->cancelTimeout();
     watchdogTimer->disable();
@@ -596,7 +722,7 @@ IOReturn SimpleMtkWlan::outputStart(IONetworkInterface *interface, IOOptionBits 
 
 UInt32 SimpleMtkWlan::outputPacket(mbuf_t m, void *param)
 {
-//    XYLog("%s\n", __FUNCTION__);
+//    XYTrace("%s\n", __FUNCTION__);
     IOReturn ret = kIOReturnOutputSuccess;
     _ifnet *ifp = &fHalService->get80211Controller()->ic_ac.ac_if;
 

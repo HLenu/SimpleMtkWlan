@@ -33,6 +33,9 @@ files.
   (王孝慈).
 - MediaTek MT7921/MT7922 attach, firmware load, DMA, scan, and TX/authentication path
   development continues in this repository.
+- pengubow fork: MT7922/RZ616 bring-up (MSI interrupts, DMA and firmware command
+  fixes, association and hardware crypto following Linux `mt7921e`/`mt76`,
+  802.11n/ac/ax with Block Ack, `mtkwifi`, HeliPort support).
 
 ## License Notes
 
