@@ -79,7 +79,7 @@ void SimpleMtkWlan::publishLog(IOService *target)
 {
     if (!target)
         return;
-    const size_t max = 65536;
+    const size_t max = 262144;
     char *buf = (char *)IOMalloc(max);
     if (!buf)
         return;

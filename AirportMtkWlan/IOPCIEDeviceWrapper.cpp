@@ -7,6 +7,7 @@
 //
 
 #include "IOPCIEDeviceWrapper.hpp"
+#include "MtkLog.hpp"
 #include "Apple80211.h"
 
 #include "MtkMwx.hpp"
@@ -104,14 +105,49 @@ start(IOService *provider)
     PMinit();
     registerPowerDriver(this, powerStateArray, 2);
     provider->joinPMtree(this);
+    logTimer = IOTimerEventSource::timerEventSource(this, &IOPCIEDeviceWrapper::logTimerFired);
+    if (logTimer && _fWorkloop->addEventSource(logTimer) == kIOReturnSuccess)
+        logTimer->setTimeoutMS(500);
+    else
+        OSSafeReleaseNULL(logTimer);
     registerService();
     return true;
+}
+
+void IOPCIEDeviceWrapper::
+publishLog()
+{
+    const size_t max = 262144;
+    char *buf = (char *)IOMalloc(max);
+    if (!buf)
+        return;
+    mtk_log_snapshot(buf, max);
+    if (OSString *log = OSString::withCString(buf)) {
+        setProperty("AirportMtkWlanLog", log);
+        log->release();
+    }
+    IOFree(buf, max);
+}
+
+void IOPCIEDeviceWrapper::
+logTimerFired(OSObject *owner, IOTimerEventSource *sender)
+{
+    IOPCIEDeviceWrapper *self = OSDynamicCast(IOPCIEDeviceWrapper, owner);
+    if (!self)
+        return;
+    self->publishLog();
+    sender->setTimeoutMS(2000);
 }
 
 void IOPCIEDeviceWrapper::
 stop(IOService *provider)
 {
     XYLog("%s\n", __PRETTY_FUNCTION__);
+    if (logTimer) {
+        logTimer->cancelTimeout();
+        _fWorkloop->removeEventSource(logTimer);
+        OSSafeReleaseNULL(logTimer);
+    }
     PMstop();
     super::stop(provider);
 }

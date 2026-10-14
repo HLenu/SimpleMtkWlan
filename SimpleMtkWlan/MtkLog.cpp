@@ -8,7 +8,7 @@
 #include <libkern/libkern.h>
 #include <IOKit/IOLib.h>
 
-static constexpr size_t kLogSize = 65536;
+static constexpr size_t kLogSize = 262144;  // start-up is ~100 KB of log at full verbosity
 static char gLog[kLogSize];
 static volatile uint64_t gLogHead; // total bytes ever written
 
