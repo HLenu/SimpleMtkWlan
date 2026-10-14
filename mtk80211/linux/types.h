@@ -131,11 +131,18 @@ extern volatile int mtk_verbose_scans;
 }
 #endif
 
+/* Which kext is talking: the native Wi-Fi build (AIRPORT) or the HeliPort one. */
+#ifdef AIRPORT
+#define MTK_LOG_NAME "AirportMtkWlan"
+#else
+#define MTK_LOG_NAME "SimpleMtkWlan"
+#endif
+
 /* kprintf only reaches the log with debug boot flags; keep these in the driver log. */
 #define XYLog(fmt, x...)\
 do\
 {\
-mtk_log("%s: " fmt, "SimpleMtkWlan", ##x);\
+mtk_log("%s: " fmt, MTK_LOG_NAME, ##x);\
 }while(0)
 
 /*
@@ -149,7 +156,7 @@ do\
 static unsigned _xy_count;\
 if (mtk_verbose_scans > 0 || _xy_count < 64) {\
 _xy_count++;\
-mtk_log("%s: " fmt, "SimpleMtkWlan", ##x);\
+mtk_log("%s: " fmt, MTK_LOG_NAME, ##x);\
 }\
 }while(0)
 

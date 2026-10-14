@@ -28,7 +28,8 @@ Working on the MT7922 / RZ616 (`14c3:0616`), tested in the macOS 15 installer:
 
 Still experimental. Known gaps:
 
-- no native Wi-Fi menu: use HeliPort or the `mtkwifi` command (below)
+- no native Wi-Fi menu with this kext: use HeliPort or the `mtkwifi` command
+  (below), or try the experimental `AirportMtkWlan.kext`
 - no roaming on beacon loss yet; walking out of range needs a manual rejoin
 - no 6 GHz, no 160 MHz
 
@@ -73,6 +74,23 @@ version, on the PCI device:
 ioreg -l -w0 | grep -E 'SimpleMtkWlan(Log|Stage|Error|Version)'
 ```
 
+## AirportMtkWlan (experimental): the native Wi-Fi menu
+
+`AirportMtkWlan.kext` is the same MediaTek driver behind macOS's own Wi-Fi
+interface (IO80211/Skywalk), so the Wi-Fi menu, System Settings and the
+installer/Recovery Wi-Fi work without HeliPort. It is laobamac's
+[AirportItlwm](https://github.com/laobamac/itlwm) Sequoia (WCL) layer on this
+repository's HAL and net80211; the upstream commit is in `AirportMtkWlan/UPSTREAM`.
+
+- macOS 15.2 to 15.x only (Darwin 24.2+); in OpenCore set MinKernel 24.2.0,
+  MaxKernel 24.99.99
+- use it **instead of** SimpleMtkWlan (both match the card)
+- 802.11ax is opt-in with `itlwm_he=1`, as upstream; `mtkphy=` still applies
+- upstream limits apply: no AirDrop/AWDL, no WPA3-only or mandatory-PMF networks
+- logs: `log show --last boot --predicate 'eventMessage CONTAINS "AirportMtkWlan"'`
+
+Not yet tested on hardware.
+
 ## Building
 
 ### On Linux (cross build, used for all testing in this fork)
@@ -95,7 +113,14 @@ Defaults assume the repository sits in `src/` of a larger tree with
 `MACKERNELSDK`, `CLANG`, `CLANGXX`, `LD64`, `MACOS_SDK` and `CLANG_USER` to
 override. `MODULE_VERSION` sets the kext version.
 
-### On macOS (Xcode)
+### On macOS
+
+```sh
+./build-macos.sh [Debug|Release] [SimpleMtkWlan|AirportMtkWlan|all]
+```
+
+Uses Xcode's toolchain (`xcrun`) and MacKernelSDK in `$MACKERNELSDK` (default
+`../deps/MacKernelSDK`). The Xcode project is older:
 
 ```sh
 xcodebuild -project SimpleMtkWlan.xcodeproj -scheme SimpleMtkWlan -configuration Debug build
@@ -113,7 +138,9 @@ building with Xcode. `build-linux.sh` lists every source file.
 - `include/` - shared driver interfaces, HeliPort ClientKit ioctls and the
   embedded firmware table
 - `mtkwifi/` - command line control tool
-- `build-linux.sh` - Linux cross build
+- `AirportMtkWlan/` - native Wi-Fi interface (from laobamac's AirportItlwm, Sequoia)
+- `include/Airport/` - IO80211/Skywalk headers for it
+- `build-linux.sh` - Linux cross build; `build-macos.sh` - macOS build of both kexts
 
 ## License
 
