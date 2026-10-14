@@ -46,6 +46,7 @@ public:
     const char *getFirmwareCountryCode() override;
     uint32_t getTxQueueSize() override;
     uint32_t getRxRateKbps() override;
+    int getRxRateMcs() override;
 
     uint32_t getPhyLimit() override;
     IOReturn setPhyLimit(uint32_t limit) override;

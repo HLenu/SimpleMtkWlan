@@ -44,6 +44,9 @@ public:
     virtual uint32_t getTxQueueSize() = 0;
 
     virtual uint32_t getRxRateKbps() = 0;
+
+    // MCS of the last received data frame (HT: 0-31, VHT: 0-9, HE: 0-11), -1 if unknown
+    virtual int getRxRateMcs() = 0;
 };
 
 #endif /* MtkDriverInfo_h */
