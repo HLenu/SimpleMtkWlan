@@ -89,7 +89,18 @@ repository's HAL and net80211; the upstream commit is in `AirportMtkWlan/UPSTREA
 - upstream limits apply: no AirDrop/AWDL, no WPA3-only or mandatory-PMF networks
 - logs: `log show --last boot --predicate 'eventMessage CONTAINS "AirportMtkWlan"'`
 
-Not yet tested on hardware.
+Working on the G713PV (MT7922/RZ616, macOS 15.8.1): Wi-Fi menu, scanning
+(~1.2 s per macOS scan request), WPA2-Personal join with macOS's private Wi-Fi
+address, DHCP; 802.11ac 80 MHz 2x2, about 83 Mbps down / 44 Mbps up
+(networkQuality). Not yet tried: sleep/wake, Recovery/installer, `itlwm_he=1`.
+
+Two macOS behaviours this kext works around:
+
+- `IO80211SkywalkInterface::setInterfaceRole()` never manages to store the
+  `IO80211InterfaceRole` property here, and airportd (Apple80211's
+  `_isInfraInterface`) ignores an interface without it, so the kext sets it
+- macOS scans a few channels per request; net80211 must not keep sweeping on its
+  own, or every request waits for a full sweep
 
 ## Building
 
