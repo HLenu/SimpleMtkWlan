@@ -7,6 +7,7 @@
 
 #include <libkern/libkern.h>
 #include <IOKit/IOLib.h>
+#include <kern/clock.h>
 
 static constexpr size_t kLogSize = 262144;  // start-up is ~100 KB of log at full verbosity
 static char gLog[kLogSize];
@@ -16,10 +17,19 @@ volatile int mtk_verbose_scans = 8;
 
 void mtk_vlog(const char *fmt, va_list ap)
 {
-    char line[320];
-    int len = vsnprintf(line, sizeof(line), fmt, ap);
+    // Seconds since boot first: timing problems (slow scans) need it.
+    char line[336];
+    uint64_t ns = 0;
+    absolutetime_to_nanoseconds(mach_absolute_time(), &ns);
+    int head = snprintf(line, sizeof(line), "[%5llu.%03llu] ",
+                        (unsigned long long)(ns / 1000000000ULL),
+                        (unsigned long long)(ns / 1000000ULL % 1000));
+    if (head < 0 || (size_t)head >= sizeof(line))
+        head = 0;
+    int len = vsnprintf(line + head, sizeof(line) - head, fmt, ap);
     if (len <= 0)
         return;
+    len += head;
     if ((size_t)len >= sizeof(line))
         len = sizeof(line) - 1;
 
