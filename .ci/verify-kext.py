@@ -94,7 +94,7 @@ def verify(kext, cli, source, archive=None):
         require(match is not None, name + ': source array exists')
         blob = bytes(int(h, 16) for h in re.findall(r'0x([0-9a-fA-F]{2})', match[1]))
         require(len(blob) == int(match[2]) and len(blob) > 1000, name + ': firmware length agrees')
-        descriptor = name.replace('mwx_', 'mwx-').replace('mt7922_', 'mt7922-')
+        descriptor = name.replace('mwx_', 'mwx-', 1)
         require(descriptor.encode() in data, name + ': descriptor embedded')
         require(blob in data, name + ': full pinned firmware embedded; sha256=' + hashlib.sha256(blob).hexdigest())
     require(SOURCE[:7].encode() in data, 'kext embeds pinned source short revision')
