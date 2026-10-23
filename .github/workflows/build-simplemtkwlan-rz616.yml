@@ -87,6 +87,7 @@ jobs:
           tar -xzf dist/SimpleMtkWlan-RZ616.tar.gz -C unpack
           python3 -I control/.ci/verify-kext.py unpack/SimpleMtkWlan.kext unpack/mtkwifi --source-root source --archive dist/SimpleMtkWlan-RZ616.tar.gz
           (cd dist && shasum -a 256 SimpleMtkWlan-RZ616.tar.gz > SHA256SUMS-archive.txt && shasum -a 256 -c SHA256SUMS-archive.txt)
+          cat dist/SHA256SUMS-archive.txt
       - name: Upload verified artifact
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
