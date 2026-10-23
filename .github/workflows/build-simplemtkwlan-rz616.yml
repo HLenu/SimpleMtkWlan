@@ -1,0 +1,96 @@
+# Canonical fork path: .github/workflows/build-simplemtkwlan-rz616.yml
+# Source and SDK are immutable. Validation is shared with local acceptance.
+name: build-simplemtkwlan-rz616
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 30
+    steps:
+      - name: Checkout validation tools from this workflow revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: HLenu/SimpleMtkWlan
+          ref: ${{ github.sha }}
+          path: control
+          persist-credentials: false
+      - name: Checkout pinned driver source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: pengubow/SimpleMtkWlan
+          ref: 01365ae048dd96839316000285ef941b93a5e59b
+          path: source
+          persist-credentials: false
+      - name: Checkout pinned MacKernelSDK
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: acidanthera/MacKernelSDK
+          ref: 3f750085caa17ec3a7880f11c11bf4f48cd6a164
+          path: deps/MacKernelSDK
+          persist-credentials: false
+      - name: Verify architecture and revisions
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          echo "runner architecture: $(uname -m)"
+          test "$(git -C source rev-parse HEAD)" = 01365ae048dd96839316000285ef941b93a5e59b
+          test "$(git -C deps/MacKernelSDK rev-parse HEAD)" = 3f750085caa17ec3a7880f11c11bf4f48cd6a164
+          xcodebuild -version
+          xcrun clang --version
+          printf 'commit %s\nMacKernelSDK %s\nworkflow %s\n' \
+            "$(git -C source rev-parse HEAD)" \
+            "$(git -C deps/MacKernelSDK rev-parse HEAD)" \
+            "$GITHUB_SHA" > SOURCE-REVISION.txt
+      - name: Build required kext and mtkwifi
+        working-directory: source
+        run: |
+          set -euo pipefail
+          ./build-macos.sh Release SimpleMtkWlan
+          test -s build/Release/SimpleMtkWlan.kext/Contents/MacOS/SimpleMtkWlan
+          test -s build/Release/SimpleMtkWlan.kext/Contents/Info.plist
+          test -x build/Release/mtkwifi
+      - name: Stage and hash all required payload files
+        run: |
+          set -euo pipefail
+          mkdir out
+          cp -R source/build/Release/SimpleMtkWlan.kext out/
+          cp source/build/Release/mtkwifi out/
+          cp SOURCE-REVISION.txt out/
+          python3 -I - <<'PY'
+          import hashlib
+          from pathlib import Path
+          root = Path('out')
+          files = sorted(p for p in root.rglob('*') if p.is_file())
+          with (root / 'SHA256SUMS.txt').open('w') as f:
+              for p in files:
+                  f.write(hashlib.sha256(p.read_bytes()).hexdigest() + '  ' + p.relative_to(root).as_posix() + '\n')
+          PY
+          cat out/SHA256SUMS.txt
+          (cd out && shasum -a 256 -c SHA256SUMS.txt)
+      - name: Mandatory static acceptance before packaging
+        run: |
+          set -euo pipefail
+          /usr/bin/plutil -lint out/SimpleMtkWlan.kext/Contents/Info.plist
+          python3 -I control/.ci/verify-kext.py out/SimpleMtkWlan.kext out/mtkwifi --source-root source
+      - name: Package with executable permissions and verify archive
+        run: |
+          set -euo pipefail
+          mkdir dist
+          COPYFILE_DISABLE=1 tar -czf dist/SimpleMtkWlan-RZ616.tar.gz -C out SimpleMtkWlan.kext mtkwifi SOURCE-REVISION.txt SHA256SUMS.txt
+          mkdir unpack
+          tar -xzf dist/SimpleMtkWlan-RZ616.tar.gz -C unpack
+          python3 -I control/.ci/verify-kext.py unpack/SimpleMtkWlan.kext unpack/mtkwifi --source-root source --archive dist/SimpleMtkWlan-RZ616.tar.gz
+          (cd dist && shasum -a 256 SimpleMtkWlan-RZ616.tar.gz > SHA256SUMS-archive.txt && shasum -a 256 -c SHA256SUMS-archive.txt)
+      - name: Upload verified artifact
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: SimpleMtkWlan-RZ616
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
